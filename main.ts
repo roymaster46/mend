@@ -892,10 +892,13 @@ function run(args: string[]): { code: number; out: string[] } {
   }
   const sorted = [...rows.entries()].sort((x, y) => Buffer.compare(Buffer.from(x[0]), Buffer.from(y[0])));
   if (!check) {
-    for (const c of changed) {
-      if (c.now === null) {
-        rmSync(c.p, { force: true });
-      } else {
+    // Deletes before creates, in one pass: a create's mkdir must not run
+    // while a path it needs as a directory is still a file scheduled for
+    // deletion (create x/y.txt then delete x would crash mkdir with EEXIST).
+    const ordered = [...changed.filter((c) => c.now === null), ...changed.filter((c) => c.now !== null)];
+    for (const c of ordered) {
+      if (c.now === null) rmSync(c.p, { force: true });
+      else {
         mkdirSync(dirname(c.p), { recursive: true });
         writeFileSync(c.p, c.now);
       }
